@@ -1,4 +1,4 @@
-"""Pydantic schemas for API request/response."""
+"""API 请求/响应的 Pydantic 模型（Schemas）。"""
 
 from datetime import datetime
 from typing import Any
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 # ---------------------------------------------------------------------------
-# Auth
+# 认证 (Auth)
 # ---------------------------------------------------------------------------
 
 
@@ -21,7 +21,7 @@ class TokenResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Question
+# 题目 (Question)
 # ---------------------------------------------------------------------------
 
 
@@ -47,12 +47,12 @@ class QuestionRead(QuestionBase):
 
 
 # ---------------------------------------------------------------------------
-# UserAnswer
+# 用户答案 (UserAnswer)
 # ---------------------------------------------------------------------------
 
 
 class AnswerSubmit(BaseModel):
-    """Payload for submitting one answer."""
+    """提交单道题目答案的内容。"""
 
     question_id: str
     raw_answer: Any
@@ -60,7 +60,7 @@ class AnswerSubmit(BaseModel):
 
 
 class BulkAnswerSubmit(BaseModel):
-    """Payload for submitting all answers at once."""
+    """一次性提交所有答案的内容。"""
 
     answers: list[AnswerSubmit]
 
@@ -83,7 +83,7 @@ class GradeFillRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# QuizSession
+# 题组记录 (QuizSession)
 # ---------------------------------------------------------------------------
 
 

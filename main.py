@@ -1,10 +1,10 @@
-"""FastAPI application entry point.
+"""FastAPI 应用入口。
 
-Mounts:
-- /mcp          → MCP SSE transport (protected by Authorization header)
-- /api/auth     → login
-- /api/sessions → quiz session REST API
-- /             → React SPA (from backend/static)
+路由挂载:
+- /mcp          → MCP Streamable HTTP 传输（通过 Authorization 头保护）
+- /api/auth     → 登录
+- /api/sessions → 题组 REST API
+- /             → React 单页应用（来自 backend/static）
 """
 
 import logging
@@ -29,14 +29,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
-    logger.info("Database initialised.")
-    yield
+    logger.info("数据库初始化完成。")
+    # 启动 MCP 会话管理器，以便 Streamable HTTP 传输能够处理请求
+    async with mcp.session_manager.run():
+        yield
 
 
 app = FastAPI(title="QuizMCP", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
-# CORS (development — frontend dev server on :5173)
+# CORS（开发环境 — 前端开发服务器位于 :5173）
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
@@ -47,13 +49,13 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# MCP SSE endpoint with password authentication middleware
+# MCP 端点，带密码认证中间件
 # ---------------------------------------------------------------------------
 
 
 @app.middleware("http")
 async def mcp_auth_middleware(request: Request, call_next: object) -> Response:
-    """Validate Authorization header for /mcp routes."""
+    """验证 /mcp 路由的 Authorization 头。"""
     if request.url.path.startswith("/mcp"):
         auth_header = request.headers.get("Authorization", "")
         expected = f"Bearer {settings.quiz_password}"
@@ -62,18 +64,21 @@ async def mcp_auth_middleware(request: Request, call_next: object) -> Response:
     return await call_next(request)  # type: ignore[operator]
 
 
-# Mount MCP SSE transport
-mcp_app = mcp.streamable_http_app()
-app.mount("/mcp", mcp_app)
+# 将 MCP Streamable HTTP 传输挂载到 /mcp
+# 子应用内部在 "/mcp" 创建路由，直接添加到 FastAPI 的路由器中
+# 以避免 app.mount() 导致的双重前缀问题。
+_mcp_starlette = mcp.streamable_http_app()
+for _route in _mcp_starlette.routes:
+    app.router.routes.append(_route)
 
 # ---------------------------------------------------------------------------
-# REST API routers
+# REST API 路由
 # ---------------------------------------------------------------------------
 app.include_router(auth_router.router)
 app.include_router(sessions_router.router)
 
 # ---------------------------------------------------------------------------
-# SPA static file serving
+# SPA 静态文件服务
 # ---------------------------------------------------------------------------
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -88,8 +93,8 @@ def _spa_app() -> None:
             return FileResponse(str(index))
     else:
         logger.warning(
-            "Static directory not found at %s. "
-            "Run `pnpm build` inside /frontend to generate it.",
+            "静态文件目录未找到: %s。"
+            "请在 /frontend 目录下执行 `pnpm build` 生成。",
             STATIC_DIR,
         )
 

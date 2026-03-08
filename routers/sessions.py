@@ -1,4 +1,4 @@
-"""Sessions router — CRUD REST endpoints for quiz sessions."""
+"""题组路由 — 题组记录的 CRUD REST 端点。"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,7 +73,11 @@ async def bulk_submit(
     body: BulkAnswerSubmit,
     db: AsyncSession = Depends(get_db),
 ) -> list[AnswerRead]:
-    """Submit all answers for a session at once."""
+    """一次性提交会话的所有答案。"""
+    session = await session_crud.get_session(db, session_id)
+    if not session or session.status != "active":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quiz is not active")
+
     results: list[AnswerRead] = []
     for item in body.answers:
         question = await question_crud.get_question(db, item.question_id)
@@ -86,6 +90,9 @@ async def bulk_submit(
             db, question, item.raw_answer, item.time_spent_seconds
         )
         results.append(AnswerRead.model_validate(ua))
+
+    # 更新题组状态: active → pending/finished
+    await session_crud.refresh_session_status(db, session_id)
     return results
 
 
@@ -99,11 +106,14 @@ async def grade_fill(
     body: GradeFillRequest,
     db: AsyncSession = Depends(get_db),
 ) -> AnswerRead:
-    """Grade a fill-in-the-blank answer (called from LLM via MCP, but also available as REST)."""
+    """批改填空题答案（由 LLM 通过 MCP 调用，但也作为 REST 接口提供）。"""
     ua = await question_crud.grade_fill(db, question_id, body.is_correct, body.comment)
     if ua is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Answer not found",
         )
+
+    # 再次检查: 如果所有填空题都已出分，状态由 pending 转换为 finished
+    await session_crud.refresh_session_status(db, session_id)
     return AnswerRead.model_validate(ua)

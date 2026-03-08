@@ -1,4 +1,4 @@
-"""SQLAlchemy async engine and session factory."""
+"""SQLAlchemy 异步引擎及会话工厂。"""
 
 import os
 from collections.abc import AsyncGenerator
@@ -12,7 +12,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from config import settings
 
-# Ensure data directory exists
+# 确保数据目录存在
 os.makedirs("data", exist_ok=True)
 
 engine = create_async_engine(
@@ -33,13 +33,13 @@ class Base(DeclarativeBase):
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency: yields an async database session."""
+    """FastAPI 依赖项：生成一个异步数据库会话。"""
     async with AsyncSessionLocal() as session:
         yield session
 
 
 async def init_db() -> None:
-    """Create all tables if they do not yet exist."""
+    """如果所有表尚不存在，则创建它们。"""
     from models import QuizSession, Question, UserAnswer  # noqa: F401
 
     async with engine.begin() as conn:

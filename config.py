@@ -1,4 +1,4 @@
-"""Application configuration loaded from environment variables / .env file."""
+"""应用配置，从环境变量 / .env 文件加载。"""
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -10,19 +10,19 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # Auth
+    # 认证配置
     quiz_password: str = "changeme"
     jwt_secret: str = "please-change-this-jwt-secret"
     jwt_expire_hours: int = 24
 
-    # Database
+    # 数据库配置
     database_url: str = "sqlite+aiosqlite:///./data/quiz.db"
 
-    # Server
+    # 服务器配置
     port: int = 8000
     host: str = "0.0.0.0"
 
-    # Frontend origin (for CORS in dev)
+    # 前端来源（用于开发环境中的 CORS）
     frontend_origin: str = "http://localhost:5173"
 
 

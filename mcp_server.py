@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from config import settings
 from database import AsyncSessionLocal
@@ -17,6 +18,9 @@ mcp = FastMCP(
         "Use the provided tools to create quiz sessions, add questions, "
         "and review student answers. "
         "Always finalize a session before sharing the link with users."
+    ),
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
     ),
 )
 
@@ -129,15 +133,34 @@ async def get_session_stats(session_id: str) -> str:
 
     Returns:
         JSON with total, correct, wrong, unanswered, fill_pending count,
-        time_spent_seconds, and a fill_pending list for manual grading.
+        time_spent_seconds, fill_pending_list, and questions_detail containing
+        each question's content, options, correct answer, and user's answer.
     """
     async with AsyncSessionLocal() as db:
         stats = await session_crud.get_session_stats(db, session_id)
         if stats is None:
             return json.dumps({"error": "Session not found"})
         pending = await session_crud.get_fill_pending(db, session_id)
+        
+        session = await session_crud.get_session(db, session_id)
+        questions_detail = []
+        if session:
+            for q in session.questions:
+                ua = q.user_answer
+                questions_detail.append({
+                    "question_id": q.id,
+                    "type": q.type,
+                    "content": q.content,
+                    "options": q.options,
+                    "correct_answer": q.answer,
+                    "user_answer": ua.raw_answer if ua else None,
+                    "is_correct": ua.is_correct if ua else None,
+                    "grade_comment": ua.grade_comment if ua else None
+                })
+
         result = stats.model_dump()
         result["fill_pending_list"] = pending
+        result["questions_detail"] = questions_detail
         return json.dumps(result, ensure_ascii=False, default=str)
 
 
@@ -167,6 +190,8 @@ async def grade_fill_answer(
             return json.dumps(
                 {"ok": False, "error": "Answer not found — user may not have submitted yet"}
             )
+        # Refresh session status (pending → finished when all fills graded)
+        await session_crud.refresh_session_status(db, session_id)
         return json.dumps({"ok": True}, ensure_ascii=False)
 
 

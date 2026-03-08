@@ -1,4 +1,4 @@
-"""CRUD operations for Question and UserAnswer."""
+"""Question 和 UserAnswer 的 CRUD 操作。"""
 
 from typing import Any
 
@@ -50,12 +50,19 @@ async def upsert_answer(
     raw_answer: Any,
     time_spent_seconds: int,
 ) -> UserAnswer:
-    """Create or update the user's answer for a question, auto-grading non-fill types."""
-    existing: UserAnswer | None = await db.get(UserAnswer, question.id)
+    """创建或更新题目的用户答案，非填空题自动判分。"""
+    result = await db.execute(
+        select(UserAnswer).where(UserAnswer.question_id == question.id)
+    )
+    existing: UserAnswer | None = result.scalar_one_or_none()
 
     is_correct: bool | None = None
-    if question.type != "fill" and question.answer is not None:
-        is_correct = _grade(question.type, question.answer, raw_answer)
+    if question.type != "fill":
+        if raw_answer is None or raw_answer == "" or raw_answer == []:
+            # Unanswered choice/multi/sort/judge is explicitly marked as wrong
+            is_correct = False
+        elif question.answer is not None:
+            is_correct = _grade(question.type, question.answer, raw_answer)
 
     if existing is not None:
         existing.raw_answer = raw_answer
@@ -97,17 +104,17 @@ async def grade_fill(
 
 
 # ---------------------------------------------------------------------------
-# Internal grading helpers
+# 内部评分辅助函数
 # ---------------------------------------------------------------------------
 
 
 def _grade(q_type: str, correct: Any, given: Any) -> bool:
-    """Auto-grade an answer. Returns True if correct."""
+    """自动批改答案。如果正确则返回 True。"""
     if q_type in ("choice", "judge"):
         return str(correct).strip().lower() == str(given).strip().lower()
 
     if q_type == "multi":
-        # Both are lists; order-insensitive
+        # 两者都是列表；与顺序无关
         if not isinstance(correct, list) or not isinstance(given, list):
             return False
         return sorted(str(x).strip().lower() for x in correct) == sorted(
@@ -115,7 +122,7 @@ def _grade(q_type: str, correct: Any, given: Any) -> bool:
         )
 
     if q_type == "sort":
-        # Both are lists; order-sensitive
+        # 两者都是列表；与顺序相关
         if not isinstance(correct, list) or not isinstance(given, list):
             return False
         return [str(x).strip().lower() for x in correct] == [

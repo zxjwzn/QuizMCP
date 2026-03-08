@@ -1,6 +1,6 @@
-"""SQLAlchemy ORM models."""
+"""SQLAlchemy ORM 模型。"""
 
-import uuid
+import secrets
 from datetime import datetime
 from typing import Any
 
@@ -11,16 +11,17 @@ from sqlalchemy.types import JSON
 from database import Base
 
 
-def _new_uuid() -> str:
-    return str(uuid.uuid4())
+def _new_id() -> str:
+    # 8 bytes of entropy = 11 characters (base64url)
+    return secrets.token_urlsafe(8)
 
 
 class QuizSession(Base):
     __tablename__ = "quiz_sessions"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_id)
     title: Mapped[str] = mapped_column(String, nullable=False)
-    # "draft" | "active" | "finished"
+    # "draft"（草稿） | "active"（进行中） | "finished"（已完成）
     status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -40,17 +41,17 @@ class QuizSession(Base):
 class Question(Base):
     __tablename__ = "questions"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_id)
     session_id: Mapped[str] = mapped_column(
         String, ForeignKey("quiz_sessions.id", ondelete="CASCADE"), nullable=False
     )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    # "choice" | "multi" | "judge" | "fill" | "sort"
+    # "choice"（单选） | "multi"（多选） | "judge"（判断） | "fill"（填空） | "sort"（排序）
     type: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(String, nullable=False)
-    # JSON: list[str] for choice/multi/sort, null for judge/fill
+    # JSON 格式: choice/multi/sort 为 list[str]，judge/fill 为 null
     options: Mapped[Any] = mapped_column(JSON, nullable=True)
-    # JSON: str for choice/judge, list[str] for multi/sort, null for fill (graded by LLM)
+    # JSON 格式: choice/judge 为 str，multi/sort 为 list[str]，fill 为 null（由 LLM 判分）
     answer: Mapped[Any] = mapped_column(JSON, nullable=True)
     explanation: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -66,19 +67,19 @@ class Question(Base):
 class UserAnswer(Base):
     __tablename__ = "user_answers"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_uuid)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_id)
     question_id: Mapped[str] = mapped_column(
         String, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False, unique=True
     )
-    # JSON: any structure matching the question type
+    # JSON 格式: 匹配题目类型的任意结构
     raw_answer: Mapped[Any] = mapped_column(JSON, nullable=False)
-    # null until graded (auto for non-fill, LLM for fill)
+    # 判分前为 null（非填空题自动判分，填空题由 LLM 判分）
     is_correct: Mapped[bool | None] = mapped_column(nullable=True)
     grade_comment: Mapped[str | None] = mapped_column(String, nullable=True)
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    # seconds from first open to submission
+    # 从首次打开到提交所花费的秒数
     time_spent_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     question: Mapped["Question"] = relationship("Question", back_populates="user_answer")

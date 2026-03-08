@@ -1,4 +1,4 @@
-"""Auth router — login endpoint."""
+"""认证路由 — 登录端点。"""
 
 from fastapi import APIRouter, HTTPException, status
 
