@@ -114,12 +114,15 @@ async def finalize_session(session_id: str) -> str:
         JSON with ok=true and the quiz_url to share.
     """
     async with AsyncSessionLocal() as db:
-        session = await session_crud.finalize_session(db, session_id)
-        if session is None:
-            return json.dumps({"ok": False, "error": "Session not found"})
-        return json.dumps(
-            {"ok": True, "quiz_url": _quiz_url(session.id)}, ensure_ascii=False
-        )
+        try:
+            session = await session_crud.finalize_session(db, session_id)
+            if session is None:
+                return json.dumps({"ok": False, "error": "Session not found"})
+            return json.dumps(
+                {"ok": True, "quiz_url": _quiz_url(session.id)}, ensure_ascii=False
+            )
+        except ValueError as e:
+            return json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False)
 
 
 @mcp.tool()

@@ -38,9 +38,13 @@ async def list_sessions(db: AsyncSession) -> list[QuizSession]:
 
 
 async def finalize_session(db: AsyncSession, session_id: str) -> QuizSession | None:
-    session = await db.get(QuizSession, session_id)
+    session = await get_session(db, session_id)
     if session is None:
         return None
+        
+    if not session.questions:
+        raise ValueError("Cannot finalize an empty session. Add at least one question first.")
+        
     session.status = "active"
     session.finalized_at = datetime.now(timezone.utc)
     await db.commit()
