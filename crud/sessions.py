@@ -52,6 +52,17 @@ async def finalize_session(db: AsyncSession, session_id: str) -> QuizSession | N
     return session
 
 
+async def delete_session(db: AsyncSession, session_id: str) -> bool:
+    """删除指定的题组。相关联的题目和用户答案将通过数据库 cascade 删除。"""
+    session = await db.get(QuizSession, session_id)
+    if session is None:
+        return False
+    
+    await db.delete(session)
+    await db.commit()
+    return True
+
+
 async def get_session_stats(db: AsyncSession, session_id: str) -> SessionStats | None:
     """计算会话的答题统计信息。"""
     session = await get_session(db, session_id)

@@ -57,6 +57,16 @@ async def get_session(
     )
 
 
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: str, db: AsyncSession = Depends(get_db)
+) -> None:
+    """Delete a quiz session by ID."""
+    success = await session_crud.delete_session(db, session_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+
 @router.get("/{session_id}/stats", response_model=SessionStats)
 async def get_session_stats(
     session_id: str, db: AsyncSession = Depends(get_db)
