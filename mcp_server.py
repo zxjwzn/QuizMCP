@@ -31,7 +31,8 @@ mcp = FastMCP(
 
 
 def _quiz_url(session_id: str) -> str:
-    return f"http://{settings.host if settings.host != '0.0.0.0' else 'localhost'}:{settings.port}/quiz/{session_id}"
+    base = settings.frontend_origin.rstrip("/")
+    return f"{base}/quiz/{session_id}"
 
 
 # ---------------------------------------------------------------------------
@@ -144,22 +145,24 @@ async def get_session_stats(session_id: str) -> str:
         if stats is None:
             return json.dumps({"error": "Session not found"})
         pending = await session_crud.get_fill_pending(db, session_id)
-        
+
         session = await session_crud.get_session(db, session_id)
         questions_detail = []
         if session:
             for q in session.questions:
                 ua = q.user_answer
-                questions_detail.append({
-                    "question_id": q.id,
-                    "type": q.type,
-                    "content": q.content,
-                    "options": q.options,
-                    "correct_answer": q.answer,
-                    "user_answer": ua.raw_answer if ua else None,
-                    "is_correct": ua.is_correct if ua else None,
-                    "grade_comment": ua.grade_comment if ua else None
-                })
+                questions_detail.append(
+                    {
+                        "question_id": q.id,
+                        "type": q.type,
+                        "content": q.content,
+                        "options": q.options,
+                        "correct_answer": q.answer,
+                        "user_answer": ua.raw_answer if ua else None,
+                        "is_correct": ua.is_correct if ua else None,
+                        "grade_comment": ua.grade_comment if ua else None,
+                    }
+                )
 
         result = stats.model_dump()
         result["fill_pending_list"] = pending
@@ -191,7 +194,10 @@ async def grade_fill_answer(
         ua = await question_crud.grade_fill(db, question_id, is_correct, comment)
         if ua is None:
             return json.dumps(
-                {"ok": False, "error": "Answer not found — user may not have submitted yet"}
+                {
+                    "ok": False,
+                    "error": "Answer not found — user may not have submitted yet",
+                }
             )
         # Refresh session status (pending → finished when all fills graded)
         await session_crud.refresh_session_status(db, session_id)
